@@ -10,17 +10,22 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
+import environ
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).parents[2]
 
+env = environ.Env()
+ENV = env('ENV', default='produc')
+env.read_env(BASE_DIR / 'envs/.{}'.format(ENV))
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-x7rqfepkr102e!zbt4tp8fa+zpg5^(f0w$6cw!h&3t3--z4(4l"
+SECRET_KEY = env('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -30,14 +35,31 @@ ALLOWED_HOSTS = []
 
 # Application definition
 
-INSTALLED_APPS = [
+DJANGO_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    # "apps.user",
 ]
+
+THIRD_PARTY_APPS = [
+    # 'reversion',
+    # 'rest_framework',
+    # 'django_filters',
+    # 'django_extensions',
+    # 'corsheaders',
+    # 'rest_framework_simplejwt',
+]
+
+LOCAL_APPS = [
+    'apps.core.apps.CoreConfig',
+    'apps.user.apps.UserConfig',
+]
+
+INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -49,7 +71,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = "nutfina.urls"
+ROOT_URLCONF = "config.urls"
 
 TEMPLATES = [
     {
@@ -66,7 +88,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "nutfina.wsgi.application"
+WSGI_APPLICATION = "config.wsgi.application"
 
 
 # Database
@@ -74,8 +96,12 @@ WSGI_APPLICATION = "nutfina.wsgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        'ENGINE': env('DB_ENGINE'),
+        'NAME': env('DB_NAME'),
+        'USER': env('DB_USER'),
+        'PASSWORD': env('DB_PASSWORD'),
+        'HOST': env('DB_HOST'),
+        'PORT': env('DB_PORT')
     }
 }
 
@@ -120,3 +146,6 @@ STATIC_URL = "static/"
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Use custom user model
+AUTH_USER_MODEL = 'user.User'

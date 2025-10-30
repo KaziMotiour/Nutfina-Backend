@@ -1,0 +1,10 @@
+SECRET_KEY=django-insecure-01j9%i-vxfyb23(45@o(!=^+=*(-p4mt^o9r@&wdzvsi9w*%wx
+DB_ENGINE=django.db.backends.postgresql
+DB_HOST=127.0.0.1
+DB_PORT=
+ALLOWED_HOSTS=*
+
+# Database
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_NAME=nutfina
