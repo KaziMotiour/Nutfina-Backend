@@ -3,6 +3,7 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseU
 from django.db import models
 from django.utils import timezone
 from apps.core.models import BaseModel
+from django_countries.fields import CountryField
 
 
 
@@ -22,6 +23,10 @@ class UserManager(BaseUserManager):
     def create_superuser(self, email, password=None, **extra_fields):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
+        return self.create_user(email, password, **extra_fields)
+    
+    def create_staffuser(self, email, password=None, **extra_fields):
+        extra_fields.setdefault("is_staff", True)
         return self.create_user(email, password, **extra_fields)
  
     
@@ -60,14 +65,23 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     
     
 class Address(BaseModel):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="addresses")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     name = models.CharField(max_length=120, blank=True)
+    email = models.EmailField(blank=True, null=True)
     phone = models.CharField(max_length=32)
     full_address = models.CharField(max_length=500)
-    country = models.CharField(max_length=80, default="Bangladesh")
+    country = CountryField(default="BD")
     district = models.CharField(max_length=120)
     postal_code = models.CharField(max_length=20, blank=True)
     is_default = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"{self.user} - {self.address_line1}"
+        return f"{self.user} - {self.full_address}"
+    
+    @property
+    def country_name(self):
+        return self.country.name
+    
+    @property
+    def is_guest_address(self):
+        return self.user is None
