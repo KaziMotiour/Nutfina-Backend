@@ -218,8 +218,10 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=2),
+    'ROTATE_REFRESH_TOKENS': True,  # Enable token rotation - returns new refresh token on each refresh
+    'BLACKLIST_AFTER_ROTATION': True,  # Blacklist old refresh tokens after rotation (requires django-rest-framework-simplejwt[blacklist])
 }
 
 APPEND_SLASH = False
