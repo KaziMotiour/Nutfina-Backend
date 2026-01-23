@@ -88,9 +88,8 @@ class UpdateCartItemView(generics.UpdateAPIView):
             context={'cart_item': cart_item}
         )
         serializer.is_valid(raise_exception=True)
-        
         try:
-            updated_item = update_cart_item(
+            update_cart_item(
                 cart_item=cart_item,
                 quantity=serializer.validated_data['quantity']
             )

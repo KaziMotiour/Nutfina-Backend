@@ -80,14 +80,14 @@ class UpdateCartItemSerializer(serializers.Serializer):
     quantity = serializers.IntegerField(min_value=1)
     
     def validate_quantity(self, value):
-        cart_item = self.context.get('cart_item')
-        if cart_item:
-            try:
-                inv = Inventory.objects.get(variant=cart_item.variant)
-                if inv.available < value:
-                    raise serializers.ValidationError(f"Insufficient stock. Available: {inv.available}")
-            except Inventory.DoesNotExist:
-                pass
+        # cart_item = self.context.get('cart_item')
+        # if cart_item:
+        #     try:
+        #         inv = Inventory.objects.get(variant=cart_item.variant)
+        #         if inv.available < value:
+        #             raise serializers.ValidationError(f"Insufficient stock. Available: {inv.available}")
+        #     except Inventory.DoesNotExist:
+        #         pass
         return value
 
 

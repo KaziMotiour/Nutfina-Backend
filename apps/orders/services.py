@@ -305,7 +305,6 @@ def get_or_create_cart(user):
 def add_to_cart(request, variant_id, quantity):
     """Add item to cart or update quantity if exists"""
     try:
-        print(variant_id)
         variant = ProductVariant.objects.get(id=variant_id, is_active=True)
         
     except ProductVariant.DoesNotExist:
