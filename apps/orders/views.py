@@ -143,12 +143,61 @@ class OrderListView(generics.ListAPIView):
 
 
 class OrderDetailView(generics.RetrieveAPIView):
-    """Get order details"""
+    """
+    Get order details - public access by order_number, restricted access by ID.
+    - When order_number is provided: Anyone can access the invoice (public invoice link)
+    - When ID (pk) is provided: Only the order owner or staff can access
+    """
     serializer_class = OrderSerializer
-    # permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
+    lookup_field = 'pk'
     
     def get_queryset(self):
-        return Order.objects.filter(user=self.request.user)
+        """
+        Base queryset - only used for ID-based lookups.
+        For order_number lookups, we bypass this and query directly.
+        """
+        if self.request.user.is_authenticated:
+            # Authenticated users can view their own orders
+            return Order.objects.filter(user=self.request.user)
+        else:
+            # Guest users can view orders with user=None (guest orders)
+            return Order.objects.filter(user=None)
+    
+    def get_object(self):
+        """
+        Override to support lookup by both ID (pk) and order_number.
+        - order_number: Public access - anyone with the order_number can view
+        - pk (ID): Restricted access - only order owner or staff can view
+        """
+        from rest_framework.exceptions import NotFound
+        
+        # Check if order_number is provided in URL (public invoice access)
+        order_number = self.kwargs.get('order_number')
+        if order_number:
+            # Public access by order_number - no authentication required
+            try:
+                return Order.objects.get(order_number=order_number, deleted=False)
+            except Order.DoesNotExist:
+                raise NotFound("Order not found")
+        
+        # Default lookup by pk (ID) - restricted access
+        pk = self.kwargs.get('pk')
+        if pk:
+            queryset = self.get_queryset()
+            try:
+                return queryset.get(pk=pk, deleted=False)
+            except Order.DoesNotExist:
+                # Check if user is staff (staff can view any order)
+                if self.request.user.is_authenticated and self.request.user.is_staff:
+                    try:
+                        return Order.objects.get(pk=pk, deleted=False)
+                    except Order.DoesNotExist:
+                        pass
+                raise NotFound("Order not found")
+        
+        return super().get_object()
+    
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context['request'] = self.request
@@ -332,11 +381,11 @@ class CouponListView(generics.ListAPIView):
 
 
 class ValidateCouponView(APIView):
-    """Validate coupon code"""
+    """Validate and apply coupon code"""
     permission_classes = [permissions.AllowAny]
     
     def post(self, request):
-        serializer = ValidateCouponSerializer(data=request.data)
+        serializer = ValidateCouponSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         
         code = serializer.validated_data['code']
@@ -344,20 +393,31 @@ class ValidateCouponView(APIView):
         
         try:
             coupon = Coupon.objects.get(code=code, active=True)
-            if not coupon.is_valid():
+            print(coupon)
+            # Get user if authenticated
+            user = request.user if request.user.is_authenticated else None
+            
+            # Check if coupon can be used
+            can_use, message = coupon.can_be_used_by_user(user, subtotal)
+            if not can_use:
                 return Response(
-                    {"detail": "Coupon is not valid or expired."},
+                    {"valid": False, "detail": message},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
+            # Calculate discount
             discount = calculate_coupon_discount(coupon, subtotal)
+            
             return Response({
                 "valid": True,
                 "coupon": CouponSerializer(coupon).data,
-                "discount": discount
+                "discount": float(discount),
+                "discount_amount": float(discount),
+                "message": "Coupon applied successfully",
+                "code": code
             })
         except Coupon.DoesNotExist:
             return Response(
-                {"detail": "Coupon not found."},
+                {"valid": False, "detail": "Coupon not found."},
                 status=status.HTTP_404_NOT_FOUND
             )

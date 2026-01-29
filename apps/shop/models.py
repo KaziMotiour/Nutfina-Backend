@@ -1,5 +1,5 @@
 from django.db import models
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 from apps.core.models import BaseModel
 # Create your models here.
@@ -155,3 +155,70 @@ class Inventory(models.Model):
     @property
     def available(self):
         return max(self.quantity - self.reserved, 0)
+
+
+class ProductRating(BaseModel):
+    """
+    Product rating and review model.
+    Allows users to rate products (1-5 stars) and optionally leave a review.
+    """
+    product = models.ForeignKey(
+        Products, 
+        on_delete=models.CASCADE, 
+        related_name='ratings'
+    )
+    user = models.ForeignKey(
+        'user.User',
+        on_delete=models.CASCADE,
+        related_name='product_ratings',
+        null=True,
+        blank=True
+    )
+    rating = models.PositiveIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text="Rating from 1 to 5 stars"
+    )
+    review = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Optional review text"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this rating is active/approved"
+    )
+    is_verified_purchase = models.BooleanField(
+        default=False,
+        help_text="Whether the user has purchased this product"
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['product', 'is_active']),
+            models.Index(fields=['user', 'is_active']),
+            models.Index(fields=['rating']),
+        ]
+        ordering = ['-created']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['product', 'user'],
+                condition=models.Q(deleted=False),
+                name='unique_rating_per_user_per_product'
+            )
+        ]
+
+    def __str__(self):
+        user_name = self.user.email if self.user else "Anonymous"
+        return f"{self.product.name} - {self.rating} stars by {user_name}"
+    
+    @property
+    def average_rating_for_product(self):
+        """
+        Calculate average rating for the product.
+        This can be used as a method or property on the Product model.
+        """
+        return ProductRating.objects.filter(
+            product=self.product,
+            is_active=True,
+            deleted=False
+        ).aggregate(avg_rating=models.Avg('rating'))['avg_rating'] or 0

@@ -7,6 +7,7 @@ from .models import (
     ProductVariant,
     ProductVariantImage,
     Inventory,
+    ProductRating,
 )
 
 
@@ -21,6 +22,8 @@ class ProductSerializer(serializers.ModelSerializer):
     images = serializers.SerializerMethodField()
     variants = serializers.SerializerMethodField()
     category_name = serializers.SerializerMethodField()
+    average_rating = serializers.SerializerMethodField()
+    rating_count = serializers.SerializerMethodField()
     
     class Meta:
         model = Products
@@ -36,6 +39,8 @@ class ProductSerializer(serializers.ModelSerializer):
             "images",
             "variants",
             "category_name",
+            "average_rating",
+            "rating_count",
             "created",
             "last_modified",
         )
@@ -53,6 +58,18 @@ class ProductSerializer(serializers.ModelSerializer):
     
     def get_category_name(self, obj):
         return obj.category.name
+    
+    def get_average_rating(self, obj):
+        """Calculate average rating for the product"""
+        from django.db.models import Avg
+        result = obj.ratings.filter(is_active=True, deleted=False).aggregate(
+            avg_rating=Avg('rating')
+        )['avg_rating']
+        return round(float(result), 2) if result else 0.0
+    
+    def get_rating_count(self, obj):
+        """Get total count of active ratings"""
+        return obj.ratings.filter(is_active=True, deleted=False).count()
 
 
 class ProductImageSerializer(serializers.ModelSerializer):
@@ -164,4 +181,50 @@ class InventorySerializer(serializers.ModelSerializer):
         model = Inventory
         fields = ("id", "variant", "quantity", "low_stock_threshold", "created", "last_modified")
         read_only_fields = ("id", "created", "last_modified")
+
+
+class ProductRatingSerializer(serializers.ModelSerializer):
+    user_email = serializers.SerializerMethodField()
+    user_name = serializers.SerializerMethodField()
+    product_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ProductRating
+        fields = (
+            "id",
+            "product",
+            "product_name",
+            "user",
+            "user_email",
+            "user_name",
+            "rating",
+            "review",
+            "is_active",
+            "is_verified_purchase",
+            "created",
+            "last_modified",
+        )
+        read_only_fields = ("id", "created", "last_modified", "user_email", "user_name", "product_name")
+    
+    def get_user_email(self, obj):
+        return obj.user.email if obj.user else None
+    
+    def get_user_name(self, obj):
+        return obj.user.full_name if obj.user and obj.user.full_name else None
+    
+    def get_product_name(self, obj):
+        return obj.product.name if obj.product else None
+    
+    def create(self, validated_data):
+        # Automatically set user from request if authenticated
+        request = self.context.get('request')
+        if request and request.user and request.user.is_authenticated:
+            validated_data['user'] = request.user
+        return super().create(validated_data)
+    
+    def validate_rating(self, value):
+        """Ensure rating is between 1 and 5"""
+        if value < 1 or value > 5:
+            raise serializers.ValidationError("Rating must be between 1 and 5.")
+        return value
 

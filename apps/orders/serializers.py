@@ -2,7 +2,7 @@ from rest_framework import serializers
 from decimal import Decimal
 from django.core.exceptions import ValidationError
 from .models import (
-    Cart, CartItem, Order, OrderItem, Payment, Coupon, InventoryTransaction
+    Cart, CartItem, Order, OrderItem, Payment, Coupon, CouponUsage, InventoryTransaction
 )
 from apps.shop.models import ProductVariant, Inventory
 from apps.user.models import Address
@@ -140,16 +140,19 @@ class OrderSerializer(serializers.ModelSerializer):
     shipping_address_detail = serializers.SerializerMethodField()
     payment = serializers.SerializerMethodField()
     user_email = serializers.SerializerMethodField()
+    coupon_detail = serializers.SerializerMethodField()
     
     class Meta:
         model = Order
         fields = [
-            'id', 'user', 'user_email', 'shipping_address', 'shipping_address_detail', 'status', 'payment_status',
+            'id', 'order_number', 'user', 'user_email', 'shipping_address', 'shipping_address_detail', 
+            'coupon', 'coupon_code', 'coupon_detail',
+            'status', 'payment_status',
             'subtotal', 'discount', 'shipping_fee', 'total_amount', 'items',
             'payment', 'placed_at', 'shipped_at', 'status_changed_at',
             'notes', 'created', 'last_modified'
         ]
-        read_only_fields = ['id', 'subtotal', 'total_amount', 'placed_at', 'shipped_at', 'status_changed_at', 'created', 'last_modified']
+        read_only_fields = ['id', 'order_number', 'subtotal', 'total_amount', 'placed_at', 'shipped_at', 'status_changed_at', 'created', 'last_modified']
     
     def get_shipping_address_detail(self, obj):
         from apps.user.serializers import AddressSerializer
@@ -166,6 +169,11 @@ class OrderSerializer(serializers.ModelSerializer):
     
     def get_user_email(self, obj):
         return obj.user.email if obj.user else None
+    
+    def get_coupon_detail(self, obj):
+        if obj.coupon:
+            return CouponSerializer(obj.coupon).data
+        return None
 
 
 class CreateOrderItemSerializer(serializers.Serializer):
@@ -218,30 +226,46 @@ class CreatePaymentSerializer(serializers.Serializer):
 # Coupon Serializers
 class CouponSerializer(serializers.ModelSerializer):
     is_valid = serializers.SerializerMethodField()
+    usage_count = serializers.SerializerMethodField()
     
     class Meta:
         model = Coupon
         fields = ['id', 'code', 'description', 'discount_percent', 'discount_amount', 
-                  'valid_from', 'valid_to', 'active', 'max_uses', 'per_user_limit', 'is_valid', 
+                  'valid_from', 'valid_to', 'active', 'max_uses', 'per_user_limit', 
+                  'min_order_amount', 'max_discount', 'is_valid', 'usage_count',
                   'created', 'last_modified']
         read_only_fields = ['id', 'created', 'last_modified']
     
     def get_is_valid(self, obj):
         return obj.is_valid()
+    
+    def get_usage_count(self, obj):
+        return obj.get_usage_count()
 
 
 class ValidateCouponSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=32)
-    subtotal = serializers.DecimalField(max_digits=12, decimal_places=2, required=False)
+    subtotal = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, default=Decimal('0.00'))
     
-    def validate_code(self, value):
+    def validate(self, attrs):
+        code = attrs.get('code')
+        subtotal = attrs.get('subtotal', Decimal('0.00'))
+        
         try:
-            coupon = Coupon.objects.get(code=value)
-            if not coupon.is_valid():
-                raise serializers.ValidationError("Coupon is not valid or expired.")
-            return value
+            coupon = Coupon.objects.get(code=code)
+            
+            # Get user from context (if available)
+            request = self.context.get('request')
+            user = request.user if request and request.user.is_authenticated else None
+            
+            # Check if coupon can be used
+            can_use, message = coupon.can_be_used_by_user(user, subtotal)
+            if not can_use:
+                raise serializers.ValidationError({"code": message})
+            
+            return attrs
         except Coupon.DoesNotExist:
-            raise serializers.ValidationError("Coupon not found.")
+            raise serializers.ValidationError({"code": "Coupon not found."})
 
 
 # Inventory Transaction Serializer
@@ -252,4 +276,17 @@ class InventoryTransactionSerializer(serializers.ModelSerializer):
         model = InventoryTransaction
         fields = ['id', 'product_variant', 'variant_sku', 'quantity', 'transaction_type', 
                   'order', 'note', 'created', 'last_modified']
+        read_only_fields = ['id', 'created', 'last_modified']
+
+
+# Coupon Usage Serializer
+class CouponUsageSerializer(serializers.ModelSerializer):
+    coupon_code = serializers.CharField(source='coupon.code', read_only=True)
+    order_id = serializers.IntegerField(source='order.id', read_only=True)
+    user_email = serializers.CharField(source='user.email', read_only=True)
+    
+    class Meta:
+        model = CouponUsage
+        fields = ['id', 'coupon', 'coupon_code', 'order', 'order_id', 'user', 'user_email',
+                  'discount_applied', 'created', 'last_modified']
         read_only_fields = ['id', 'created', 'last_modified']

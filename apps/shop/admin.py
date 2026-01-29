@@ -4,7 +4,7 @@ from django.urls import reverse
 from django.db.models import Sum
 from .models import (
     Categories, Products, ProductImages, ProductVariant,
-    ProductVariantImage, Inventory
+    ProductVariantImage, Inventory, ProductRating
 )
 
 
@@ -375,3 +375,44 @@ class InventoryAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         # Prevent deletion, only allow editing
         return False
+
+
+@admin.register(ProductRating)
+class ProductRatingAdmin(admin.ModelAdmin):
+    list_display = (
+        'id', 'product', 'user', 'rating', 'is_active', 
+        'is_verified_purchase', 'created', 'has_review'
+    )
+    list_filter = ('rating', 'is_active', 'is_verified_purchase', 'created', 'deleted')
+    search_fields = ('product__name', 'user__email', 'user__full_name', 'review')
+    readonly_fields = ('created', 'last_modified', 'deleted')
+    date_hierarchy = 'created'
+    list_per_page = 25
+    
+    fieldsets = (
+        ('Rating Information', {
+            'fields': ('product', 'user', 'rating', 'review')
+        }),
+        ('Status', {
+            'fields': ('is_active', 'is_verified_purchase', 'deleted')
+        }),
+        ('Timestamps', {
+            'fields': ('created', 'last_modified'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def has_review(self, obj):
+        return bool(obj.review)
+    has_review.boolean = True
+    has_review.short_description = 'Has Review'
+    
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related('product', 'user')
+    
+    def get_readonly_fields(self, request, obj=None):
+        # Make user and product readonly when editing existing rating
+        if obj:
+            return self.readonly_fields + ('user', 'product')
+        return self.readonly_fields

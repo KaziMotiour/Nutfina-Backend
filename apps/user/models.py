@@ -74,7 +74,8 @@ class Address(BaseModel):
     district = models.CharField(max_length=120)
     postal_code = models.CharField(max_length=20, blank=True)
     is_default = models.BooleanField(default=False)
-
+    is_guest = models.BooleanField(default=False)
+    
     def __str__(self):
         return f"{self.user} - {self.full_address}"
     

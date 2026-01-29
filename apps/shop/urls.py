@@ -12,6 +12,8 @@ from .views import (
     ProductVariantImageDetailView,
     InventoryListCreateView,
     InventoryDetailView,
+    ProductRatingListCreateView,
+    ProductRatingDetailView,
 )
 
 urlpatterns = [
@@ -21,7 +23,7 @@ urlpatterns = [
 
     # Products
     path('products/', ProductListCreateView.as_view(), name='product-list-create'),
-    path('products/<slug:slug>/', ProductDetailView.as_view(), name='product-detail'),
+    path('products/<int:pk>/', ProductDetailView.as_view(), name='product-detail'),
 
     # Product Images
     path('product-images/', ProductImageListCreateView.as_view(), name='product-image-list-create'),
@@ -38,5 +40,9 @@ urlpatterns = [
     # Inventory
     path('inventory/', InventoryListCreateView.as_view(), name='inventory-list-create'),
     path('inventory/<int:pk>/', InventoryDetailView.as_view(), name='inventory-detail'),
+
+    # Product Ratings
+    path('ratings/', ProductRatingListCreateView.as_view(), name='rating-list-create'),
+    path('ratings/<int:pk>/', ProductRatingDetailView.as_view(), name='rating-detail'),
 ]
 

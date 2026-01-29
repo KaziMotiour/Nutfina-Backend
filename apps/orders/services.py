@@ -8,7 +8,7 @@ from apps.shop.models import ProductVariant, Inventory
 from apps.user.models import Address
 from .models import (
     InventoryTransaction, Order, OrderItem, 
-    Payment, Coupon, Cart, CartItem
+    Payment, Coupon, CouponUsage, Cart, CartItem
 )
 
 
@@ -228,13 +228,15 @@ def create_order_from_cart(user, cart_items, shipping_address_id=None, guest_shi
     if coupon_code:
         try:
             coupon = Coupon.objects.get(code=coupon_code, active=True)
-            if not coupon.is_valid():
-                raise ValidationError("Coupon is not valid")
-            # Calculate discount
-            if coupon.discount_percent:
-                discount = (subtotal * coupon.discount_percent / 100).quantize(Decimal("0.01"))
-            elif coupon.discount_amount:
-                discount = min(coupon.discount_amount, subtotal)
+            
+            # Check if coupon can be used by user
+            can_use, message = coupon.can_be_used_by_user(user, subtotal)
+            if not can_use:
+                raise ValidationError(message)
+            
+            # Calculate discount using coupon's method
+            discount = coupon.calculate_discount(subtotal)
+
         except Coupon.DoesNotExist:
             raise ValidationError("Coupon not found")
 
@@ -250,6 +252,8 @@ def create_order_from_cart(user, cart_items, shipping_address_id=None, guest_shi
     order = Order.objects.create(
         user=user,
         shipping_address=shipping_address,
+        coupon=coupon,
+        coupon_code=coupon_code or '',
         subtotal=subtotal,
         discount=discount,
         shipping_fee=Decimal(str(shipping_fee)),
@@ -257,6 +261,15 @@ def create_order_from_cart(user, cart_items, shipping_address_id=None, guest_shi
     )
     order.calculate_totals()
     order.save()
+    
+    # Track coupon usage if coupon was applied
+    if coupon:
+        CouponUsage.objects.create(
+            coupon=coupon,
+            order=order,
+            user=user,
+            discount_applied=discount
+        )
 
     # Create order items (snapshots)
     order_items = []
@@ -407,9 +420,8 @@ def merge_cart(request, user):
 
 
 def calculate_coupon_discount(coupon, subtotal):
-    """Calculate discount amount from coupon"""
-    if coupon.discount_percent:
-        return (subtotal * coupon.discount_percent / 100).quantize(Decimal("0.01"))
-    elif coupon.discount_amount:
-        return min(coupon.discount_amount, subtotal)
-    return Decimal('0.00')
+    """
+    Calculate discount amount from coupon
+    This is a convenience function that wraps the coupon's calculate_discount method
+    """
+    return coupon.calculate_discount(subtotal)

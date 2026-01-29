@@ -1,5 +1,7 @@
 from rest_framework import permissions, filters, generics
+from rest_framework.exceptions import PermissionDenied
 from django_filters.rest_framework import DjangoFilterBackend
+from django.db import models
 from .models import (
     Categories,
     Products,
@@ -7,6 +9,7 @@ from .models import (
     ProductVariant,
     ProductVariantImage,
     Inventory,
+    ProductRating,
 )
 from .serializers import (
     CategorySerializer,
@@ -15,6 +18,7 @@ from .serializers import (
     ProductVariantSerializer,
     ProductVariantImageSerializer,
     InventorySerializer,
+    ProductRatingSerializer,
 )
 from .filters import ProductFilter  
 
@@ -55,7 +59,7 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Products.objects.all()
     serializer_class = ProductSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    lookup_field = "slug"
+    lookup_field = "pk"
 
 class ProductImageListCreateView(generics.ListCreateAPIView):
     queryset = ProductImages.objects.all()
@@ -113,3 +117,64 @@ class InventoryDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Inventory.objects.all()
     serializer_class = InventorySerializer
     permission_classes = [permissions.IsAuthenticated]
+
+
+class ProductRatingListCreateView(generics.ListCreateAPIView):
+    queryset = ProductRating.objects.filter(deleted=False, is_active=True)
+    serializer_class = ProductRatingSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ["product", "user", "rating", "is_active", "is_verified_purchase"]
+    ordering_fields = ["created", "rating"]
+    ordering = ["-created"]
+    
+    def get_queryset(self):
+        queryset = ProductRating.objects.filter(deleted=False)
+        # If user is authenticated, show their own inactive ratings too
+        if self.request.user and self.request.user.is_authenticated:
+            queryset = ProductRating.objects.filter(
+                deleted=False
+            ).filter(
+                models.Q(is_active=True) | models.Q(user=self.request.user)
+            )
+        else:
+            queryset = queryset.filter(is_active=True)
+        return queryset.select_related('product', 'user')
+    
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+
+class ProductRatingDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = ProductRating.objects.filter(deleted=False)
+    serializer_class = ProductRatingSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    
+    def get_queryset(self):
+        queryset = ProductRating.objects.filter(deleted=False)
+        # If user is authenticated, allow them to see/edit their own ratings
+        if self.request.user and self.request.user.is_authenticated:
+            return queryset.select_related('product', 'user')
+        # For anonymous users, only show active ratings
+        return queryset.filter(is_active=True).select_related('product', 'user')
+    
+    def perform_update(self, serializer):
+        # Only allow users to update their own ratings
+        instance = self.get_object()
+        if self.request.user and self.request.user.is_authenticated:
+            if instance.user != self.request.user and not self.request.user.is_staff:
+                raise PermissionDenied("You can only update your own ratings.")
+        serializer.save()
+    
+    def perform_destroy(self, instance):
+        # Soft delete by setting deleted=True instead of actually deleting
+        instance.deleted = True
+        instance.is_active = False
+        instance.save()
+    
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context

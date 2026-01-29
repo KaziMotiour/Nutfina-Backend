@@ -3,12 +3,13 @@ from .views import (
     # Cart views
     CartView, AddToCartView, UpdateCartItemView, RemoveFromCartView,
     # Order views
-    OrderListView, OrderDetailView, CheckoutView, OrderStatusUpdateView,
+    OrderListView, OrderDetailView, OrderStatusUpdateView,
     # Payment views
     PaymentDetailView, CreatePaymentView, UpdatePaymentStatusView,
     # Coupon views
     CouponListView, ValidateCouponView,
 )
+from .checkout_views import CheckoutView
 
 urlpatterns = [
     # Cart endpoints
@@ -20,6 +21,7 @@ urlpatterns = [
     # Order endpoints
     path('orders/', OrderListView.as_view(), name='order-list'),
     path('orders/<int:pk>/', OrderDetailView.as_view(), name='order-detail'),
+    path('orders/by-number/<str:order_number>/', OrderDetailView.as_view(), name='order-detail-by-number'),
     path('checkout/', CheckoutView.as_view(), name='checkout'),
     path('orders/<int:pk>/status/', OrderStatusUpdateView.as_view(), name='order-status-update'),
     
