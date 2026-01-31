@@ -61,6 +61,36 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     lookup_field = "pk"
 
+class FeaturedProductListView(generics.ListAPIView):
+    """
+    Dedicated view for featured products.
+    Returns only active products marked as featured, optimized for Deal component.
+    """
+    serializer_class = ProductSerializer
+    permission_classes = [permissions.AllowAny]  # Public endpoint
+    
+    def get_queryset(self):
+        """
+        Return only featured and active products with optimized prefetching.
+        """
+        queryset = Products.objects.filter(
+            is_featured=True,
+            is_active=True
+        ).prefetch_related(
+            'productimages_set',
+            'productvariant_set',
+            'productvariant_set__images',
+            'productvariant_set__product__productimages_set'
+        ).select_related('category')
+        
+        # Order by creation date (newest first) or any other preferred ordering
+        return queryset.order_by('-created', '-id')
+    
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
 class ProductImageListCreateView(generics.ListCreateAPIView):
     queryset = ProductImages.objects.all()
     serializer_class = ProductImageSerializer
