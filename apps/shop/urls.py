@@ -24,8 +24,8 @@ urlpatterns = [
 
     # Products
     path('products/', ProductListCreateView.as_view(), name='product-list-create'),
-    path('products/<int:pk>/', ProductDetailView.as_view(), name='product-detail'),
     path('products/featured/', FeaturedProductListView.as_view(), name='featured-product-list'),
+    path('products/<slug:slug>/', ProductDetailView.as_view(), name='product-detail'),
 
     # Product Images
     path('product-images/', ProductImageListCreateView.as_view(), name='product-image-list-create'),

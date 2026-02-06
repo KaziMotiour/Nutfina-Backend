@@ -18,6 +18,5 @@ class ProductFilter(FilterSet):
         return queryset.filter(category__slug=value)
     
     def filter_search(self, queryset, name, value):
-        print(value)
         print(queryset.filter(name__icontains=value).count())
         return queryset.filter(name__icontains=value)

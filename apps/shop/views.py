@@ -59,7 +59,7 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Products.objects.all()
     serializer_class = ProductSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    lookup_field = "pk"
+    lookup_field = "slug"
 
 class FeaturedProductListView(generics.ListAPIView):
     """

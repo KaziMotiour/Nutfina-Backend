@@ -22,6 +22,10 @@ class Products(BaseModel):
         max_digits=10, decimal_places=2,
         validators=[MinValueValidator(0)]
     )
+    excerpt = models.TextField(
+        blank=True,
+        help_text="Short summary or excerpt of the product"
+    )
     # tags = models.ManyToManyField("Tag", blank=True)
     is_active = models.BooleanField(default=True)
     is_featured = models.BooleanField(default=False)

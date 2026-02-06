@@ -22,6 +22,7 @@ class ProductSerializer(serializers.ModelSerializer):
     images = serializers.SerializerMethodField()
     variants = serializers.SerializerMethodField()
     category_name = serializers.SerializerMethodField()
+    category_slug = serializers.SerializerMethodField()
     average_rating = serializers.SerializerMethodField()
     rating_count = serializers.SerializerMethodField()
     
@@ -32,6 +33,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "name",
             "slug",
             "category",
+            "excerpt",
             "description",
             "base_price",
             "is_active",
@@ -39,6 +41,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "images",
             "variants",
             "category_name",
+            "category_slug",
             "average_rating",
             "rating_count",
             "created",
@@ -70,6 +73,9 @@ class ProductSerializer(serializers.ModelSerializer):
     def get_rating_count(self, obj):
         """Get total count of active ratings"""
         return obj.ratings.filter(is_active=True, deleted=False).count()
+    
+    def get_category_slug(self, obj):
+        return obj.category.slug
 
 
 class ProductImageSerializer(serializers.ModelSerializer):
